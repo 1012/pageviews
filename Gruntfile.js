@@ -196,12 +196,12 @@ module.exports = function(grunt) {
           // order matters here
           'public_html/topviews/application.js': coreJSDependencies.concat([
             'vendor/javascripts/select2.min.js',
-            'vendor/javascripts/daterangepicker.min.js',
+            'vendor/javascripts/bootstrap-datepicker.min.js',
             'public_html/topviews/topviews.js'
           ]),
           'public_html/topviews/application.css': coreCSSDependencies.concat([
             'vendor/stylesheets/select2.min.css',
-            'vendor/stylesheets/daterangepicker.min.css',
+            'vendor/stylesheets/bootstrap-datepicker.min.css',
             'public_html/topviews/topviews.css'
           ]),
           'public_html/topviews/faq/application.js': coreJSDependencies,

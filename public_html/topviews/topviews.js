@@ -3951,7 +3951,7 @@ var config = {
   dateRangeSelector: '.aqs-date-range-selector',
   dateLimit: 31, // num days
   defaults: {
-    dateRange: 'last-week',
+    dateRange: 'last-month',
     daysAgo: 7,
     excludes: [],
     project: 'en.wikipedia.org'
@@ -4193,17 +4193,23 @@ var TopViews = function (_Pv) {
   }, {
     key: 'getPageviewsURL',
     value: function getPageviewsURL(article) {
-      var startDate = moment(this.daterangepicker.startDate),
-          endDate = moment(this.daterangepicker.endDate);
+      // first get the date range
+      var date = moment(app.datepicker.getDate());
+      var startDate = void 0,
+          endDate = void 0;
+      if (this.isMonthly()) {
+        startDate = date.format('YYYY-MM-01');
+        endDate = date.endOf('month').format('YYYY-MM-DD');
+      } else {
+        // surround single dates with 3 days to make the pageviews chart meaningful
+        startDate = date.subtract(3, 'days').format('YYYY-MM-DD');
+        endDate = date.add(3, 'days').format('YYYY-MM-DD');
+      }
+
       var platform = $(this.config.platformSelector).val(),
           project = $(this.config.projectInput).val();
 
-      if (endDate.diff(startDate, 'days') === 0) {
-        startDate.subtract(3, 'days');
-        endDate.add(3, 'days');
-      }
-
-      return '/pageviews#start=' + startDate.format('YYYY-MM-DD') + ('&end=' + endDate.format('YYYY-MM-DD') + '&project=' + project + '&platform=' + platform + '&pages=' + article);
+      return '/pageviews?start=' + startDate + '&end=' + endDate + '&project=' + project + '&platform=' + platform + '&pages=' + article;
     }
 
     /**
@@ -4228,10 +4234,9 @@ var TopViews = function (_Pv) {
        *   or a relative range like `{range: 'latest-N'}` where N is the number of days.
        */
       if (this.specialRange && specialRange) {
-        params.range = this.specialRange.range;
+        params.date = this.specialRange.range;
       } else {
-        params.start = this.daterangepicker.startDate.format('YYYY-MM-DD');
-        params.end = this.daterangepicker.endDate.format('YYYY-MM-DD');
+        params.date = moment(this.datepicker.getDate()).format('YYYY-MM-DD');
       }
 
       return params;
@@ -4251,6 +4256,53 @@ var TopViews = function (_Pv) {
     }
 
     /**
+     * Set datepicker based on provided relative range
+     * @param {String} range - e.g. 'last-month', 'yesterday'
+     * @returns {Boolean} whether a valid range was provided and was set
+     * @override
+     */
+
+  }, {
+    key: 'setSpecialRange',
+    value: function setSpecialRange(range) {
+      if (range === 'last-month') {
+        // '05' is an arbitrary date past the 1st to get around timezone conversion
+        var dateStr = moment().subtract(1, 'month').format('YYYY-MM-') + '05';
+        this.datepicker.setDate(new Date(dateStr));
+        this.specialRange = true;
+      } else if (range === 'yesterday') {
+        var yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        this.datepicker.setDate(yesterday);
+        this.specialRange = true;
+      } else {
+        return false;
+      }
+
+      return true;
+    }
+
+    /**
+     * Set datepicker based on provided date or range
+     * @param {String} dateInput - either a range like 'last-month', 'yesterday' or date with format 'YYYY-MM-DD'
+     * @returns {null} nothing
+     */
+
+  }, {
+    key: 'setDate',
+    value: function setDate(dateInput) {
+      // attempt to parse date to determine if we were given a range
+      var date = Date.parse(dateInput);
+
+      if (isNaN(date)) {
+        // invalid date, so attempt to set as special range, or default range if range is invalid
+        this.setSpecialRange(dateInput) || this.setSpecialRange(this.config.defaults.dateRange);
+      } else {
+        this.datepicker.setDate(new Date(dateInput));
+      }
+    }
+
+    /**
      * Parses the URL query string and sets all the inputs accordingly
      * Should only be called on initial page load, until we decide to support pop states (probably never)
      * @returns {null} nothing
@@ -4262,42 +4314,14 @@ var TopViews = function (_Pv) {
       var _this6 = this;
 
       this.startSpinny();
-      var startDate = void 0,
-          endDate = void 0,
-          params = this.parseQueryString('excludes');
+      var params = this.parseQueryString('excludes');
 
       $(this.config.projectInput).val(params.project || this.config.defaults.project);
       if (this.validateProject()) return;
 
       this.patchUsage();
 
-      /**
-       * Check if we're using a valid range, and if so ignore any start/end dates.
-       * If an invalid range, throw and error and use default dates.
-       */
-      if (params.range) {
-        if (!this.setSpecialRange(params.range)) {
-          this.addSiteNotice('danger', $.i18n('param-error-3'), $.i18n('invalid-params'), true);
-          this.setSpecialRange(this.config.defaults.dateRange);
-        }
-      } else if (params.start) {
-        startDate = moment(params.start || moment().subtract(this.config.defaults.daysAgo, 'days'));
-        endDate = moment(params.end || Date.now());
-        if (startDate < this.config.minDate || endDate < this.config.minDate) {
-          this.addSiteNotice('danger', $.i18n('param-error-1', $.i18n('july') + ' 2015'), $.i18n('invalid-params'), true);
-          this.resetView();
-          return;
-        } else if (startDate > endDate) {
-          this.addSiteNotice('warning', $.i18n('param-error-2'), $.i18n('invalid-params'), true);
-          this.resetView();
-          return;
-        }
-        /** directly assign startDate before calling setEndDate so events will be fired once */
-        this.daterangepicker.startDate = startDate;
-        this.daterangepicker.setEndDate(endDate);
-      } else {
-        this.setSpecialRange(this.config.defaults.dateRange);
-      }
+      this.setDate(params.date);
 
       $(this.config.platformSelector).val(params.platform || 'all-access');
 
@@ -4494,31 +4518,34 @@ var TopViews = function (_Pv) {
 
     /**
      * sets up the daterange selector and adds listeners
+     * @param {String} [type] - either 'monthly' or 'daily'
      * @returns {null} - nothing
      */
 
   }, {
     key: 'setupDateRangeSelector',
     value: function setupDateRangeSelector() {
-      var _this10 = this;
+      var type = arguments.length <= 0 || arguments[0] === undefined ? 'monthly' : arguments[0];
 
-      _get(Object.getPrototypeOf(TopViews.prototype), 'setupDateRangeSelector', this).call(this);
+      var yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
 
-      var dateRangeSelector = $(this.config.dateRangeSelector);
+      var datepickerParams = type === 'monthly' ? {
+        format: 'MM yyyy',
+        viewMode: 'months',
+        minViewMode: 'months',
+        endDate: '-1m'
+      } : {
+        format: 'yyyy-mm-dd',
+        viewMode: 'days',
+        endDate: yesterday
+      };
 
-      /** the "Latest N days" links */
-      $('.date-latest a').on('click', function (e) {
-        this.setSpecialRange('latest-' + $(this).data('value'));
-      });
-
-      dateRangeSelector.on('apply.daterangepicker', function (e, action) {
-        if (action.chosenLabel === $.i18n('custom-range')) {
-          _this10.specialRange = null;
-
-          /** force events to re-fire since apply.daterangepicker occurs before 'change' event */
-          _this10.daterangepicker.updateElement();
-        }
-      });
+      $(this.config.dateRangeSelector).datepicker('destroy');
+      $(this.config.dateRangeSelector).datepicker(Object.assign({
+        autoclose: true,
+        startDate: new Date('2015-07-01')
+      }, datepickerParams));
     }
 
     /**
@@ -4529,21 +4556,24 @@ var TopViews = function (_Pv) {
   }, {
     key: 'setupListeners',
     value: function setupListeners() {
-      var _this11 = this;
+      var _this10 = this;
 
       _get(Object.getPrototypeOf(TopViews.prototype), 'setupListeners', this).call(this);
 
       $(this.config.platformSelector).on('change', this.processInput.bind(this));
+      $('#date-type-select').on('change', function (e) {
+        _this10.setupDateRangeSelector(e.target.value);
+      });
       $('.expand-chart').on('click', function () {
-        _this11.offset += _this11.config.pageSize;
-        _this11.drawData();
+        _this10.offset += _this10.config.pageSize;
+        _this10.drawData();
       });
       $(this.config.dateRangeSelector).on('change', function (e) {
         /** clear out specialRange if it doesn't match our input */
-        if (_this11.specialRange && _this11.specialRange.value !== e.target.value) {
-          _this11.specialRange = null;
+        if (_this10.specialRange && _this10.specialRange.value !== e.target.value) {
+          _this10.specialRange = null;
         }
-        _this11.processInput();
+        _this10.processInput();
       });
       $('#topviews_search_field').on('keyup', this.searchTopviews.bind(this));
       $('.topviews-search-icon').on('click', this.clearSearch.bind(this));
@@ -4557,17 +4587,51 @@ var TopViews = function (_Pv) {
   }, {
     key: 'setupProjectInput',
     value: function setupProjectInput() {
-      var _this12 = this;
+      var _this11 = this;
 
       $(this.config.projectInput).on('change', function (e) {
         if (!e.target.value) {
-          e.target.value = _this12.config.defaults.project;
+          e.target.value = _this11.config.defaults.project;
           return;
         }
-        if (_this12.validateProject()) return;
-        _this12.resetView(false);
-        _this12.processInput(true).then(resetArticleSelector);
+        if (_this11.validateProject()) return;
+        _this11.resetView(false);
+        _this11.processInput(true).then(resetArticleSelector);
       });
+    }
+
+    /**
+     * Get instance of datepicker
+     * @return {Object} the datepicker instance
+     */
+
+  }, {
+    key: 'isMonthly',
+
+
+    /**
+     * Are we in 'monthly' mode? (If we aren't then we're in daily)
+     * @return {Boolean} yes or no
+     */
+    value: function isMonthly() {
+      return $('#date-type-select').val() === 'monthly';
+    }
+
+    /**
+     * Get the currently selected date for the purposes of pageviews API call
+     * @return {String} formatted date
+     */
+
+  }, {
+    key: 'getAPIDate',
+    value: function getAPIDate() {
+      var datepickerValue = this.datepicker.getDate();
+
+      if (this.isMonthly()) {
+        return moment(datepickerValue).format('YYYY/MM') + '/all-days';
+      } else {
+        return moment(datepickerValue).format('YYYY/MM/DD');
+      }
     }
 
     /**
@@ -4578,75 +4642,41 @@ var TopViews = function (_Pv) {
   }, {
     key: 'initData',
     value: function initData() {
-      var _$,
-          _this13 = this;
+      var _this12 = this;
 
       var dfd = $.Deferred();
 
       this.startSpinny();
       $('.expand-chart').hide();
 
-      /** Collect parameters from inputs. */
-      var startDate = this.daterangepicker.startDate,
-          endDate = this.daterangepicker.endDate,
-          access = $(this.config.platformSelector).val();
+      var access = $(this.config.platformSelector).val();
 
-      var promises = [],
-          initPageData = {};
-
-      for (var date = moment(startDate); date.isBefore(endDate); date.add(1, 'd')) {
-        promises.push($.ajax({
-          url: 'https://wikimedia.org/api/rest_v1/metrics/pageviews/top/' + this.project + '/' + access + '/' + date.format('YYYY/MM/DD'),
-          dataType: 'json'
-        }));
-      }
-
-      return (_$ = $).when.apply(_$, promises).then(function () {
-        for (var _len = arguments.length, data = Array(_len), _key = 0; _key < _len; _key++) {
-          data[_key] = arguments[_key];
-        }
-
-        if (promises.length === 1) data = [data];
-
-        /** import data and do summations */
-        data.forEach(function (day) {
-          day[0].items[0].articles.forEach(function (item) {
-            var article = item.article.replace(/_/g, ' ');
-
-            if (initPageData[article]) {
-              initPageData[article] += item.views;
-            } else {
-              initPageData[article] = item.views;
-            }
-          });
+      $.ajax({
+        url: 'https://wikimedia.org/api/rest_v1/metrics/pageviews/top/' + this.project + '/' + access + '/' + this.getAPIDate(),
+        dataType: 'json'
+      }).done(function (data) {
+        // store pageData from API, removing underscores from the page name
+        _this12.pageData = data.items[0].articles.map(function (page) {
+          page.article = page.article.descore();
+          return page;
         });
 
-        /** sort given new view counts */
-        var sortable = [];
-        for (var page in initPageData) {
-          sortable.push({
-            article: page,
-            views: initPageData[page]
-          });
-        }
-        _this13.pageData = sortable.sort(function (a, b) {
-          return b.views - a.views;
+        /** build the pageNames array for Select2 */
+        _this12.pageNames = _this12.pageData.map(function (page) {
+          return page.article;
         });
 
-        /** ...and build the pageNames array for Select2 */
-        _this13.pageNames = _this13.pageData.map(function (value) {
-          return value.article;
-        });
-
-        if (_this13.excludes.length) {
-          return dfd.resolve(_this13.pageData);
+        if (_this12.excludes.length) {
+          return dfd.resolve(_this12.pageData);
         } else {
           /** find first 30 non-mainspace pages and exclude them */
-          _this13.filterByNamespace(_this13.pageNames.slice(0, 30)).done(function () {
-            return dfd.resolve(_this13.pageData);
+          _this12.filterByNamespace(_this12.pageNames.slice(0, 30)).done(function () {
+            return dfd.resolve(_this12.pageData);
           });
         }
       });
+
+      return dfd;
     }
 
     /**
@@ -4659,7 +4689,7 @@ var TopViews = function (_Pv) {
   }, {
     key: 'filterByNamespace',
     value: function filterByNamespace(pages) {
-      var _this14 = this;
+      var _this13 = this;
 
       var ns = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
 
@@ -4694,7 +4724,7 @@ var TopViews = function (_Pv) {
                 excludes.push(normalizedTitle || title);
               }
             });
-            _this14.addExclude(excludes);
+            _this13.addExclude(excludes);
           })();
         }
 
@@ -4719,6 +4749,11 @@ var TopViews = function (_Pv) {
         $('body').addClass('invalid-project');
         return true;
       }
+    }
+  }, {
+    key: 'datepicker',
+    get: function get() {
+      return $(this.config.dateRangeSelector).data('datepicker');
     }
   }]);
 

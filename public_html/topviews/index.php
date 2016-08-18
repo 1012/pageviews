@@ -28,20 +28,33 @@
         </div>
         <div class="row aqs-row options">
           <!-- Date range selector -->
-          <div class="col-lg-4 col-sm-4">
+          <div class="col-lg-3 col-sm-3">
+            <label>
+              Date type
+            </label>
+            <select class="form-control" id="date-type-select">
+              <option value="monthly">
+                Monthly
+              </option>
+              <option value="daily">
+                Daily
+              </option>
+            </select>
+          </div>
+          <div class="col-lg-3 col-sm-3">
             <label for="range-input">
               <?php echo $I18N->msg( 'dates' ); ?>
             </label>
             <input class="form-control aqs-date-range-selector" id="range-input">
           </div>
           <!-- Project selector -->
-          <div class="col-lg-4 col-sm-4">
+          <div class="col-lg-3 col-sm-3">
             <label for="project-input">
               <?php echo $I18N->msg( 'project' ); ?>
             </label>
             <input class="form-control aqs-project-input" id="project-input" placeholder="en.wikipedia.org">
           </div>
-          <div class="col-lg-4 col-sm-4">
+          <div class="col-lg-3 col-sm-3">
             <label for="platform-select">
               <?php echo $I18N->msg( 'platform' ); ?>
             </label>

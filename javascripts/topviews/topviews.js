@@ -177,18 +177,22 @@ class TopViews extends Pv {
    * @returns {string} URL
    */
   getPageviewsURL(article) {
-    let startDate = moment(this.daterangepicker.startDate),
-      endDate = moment(this.daterangepicker.endDate);
+    // first get the date range
+    const date = moment(app.datepicker.getDate());
+    let startDate, endDate;
+    if (this.isMonthly()) {
+      startDate = date.format('YYYY-MM-01');
+      endDate = date.endOf('month').format('YYYY-MM-DD');
+    } else {
+      // surround single dates with 3 days to make the pageviews chart meaningful
+      startDate = date.subtract(3, 'days').format('YYYY-MM-DD');
+      endDate = date.add(3, 'days').format('YYYY-MM-DD');
+    }
+
     const platform = $(this.config.platformSelector).val(),
       project = $(this.config.projectInput).val();
 
-    if (endDate.diff(startDate, 'days') === 0) {
-      startDate.subtract(3, 'days');
-      endDate.add(3, 'days');
-    }
-
-    return `/pageviews#start=${startDate.format('YYYY-MM-DD')}` +
-      `&end=${endDate.format('YYYY-MM-DD')}&project=${project}&platform=${platform}&pages=${article}`;
+    return `/pageviews?start=${startDate}&end=${endDate}&project=${project}&platform=${platform}&pages=${article}`;
   }
 
   /**
@@ -208,10 +212,9 @@ class TopViews extends Pv {
      *   or a relative range like `{range: 'latest-N'}` where N is the number of days.
      */
     if (this.specialRange && specialRange) {
-      params.range = this.specialRange.range;
+      params.date = this.specialRange.range;
     } else {
-      params.start = this.daterangepicker.startDate.format('YYYY-MM-DD');
-      params.end = this.daterangepicker.endDate.format('YYYY-MM-DD');
+      params.date = moment(this.datepicker.getDate()).format('YYYY-MM-DD');
     }
 
     return params;
@@ -228,46 +231,61 @@ class TopViews extends Pv {
   }
 
   /**
+   * Set datepicker based on provided relative range
+   * @param {String} range - e.g. 'last-month', 'yesterday'
+   * @returns {Boolean} whether a valid range was provided and was set
+   * @override
+   */
+  setSpecialRange(range) {
+    if (range === 'last-month') {
+      // '05' is an arbitrary date past the 1st to get around timezone conversion
+      const dateStr = moment().subtract(1, 'month').format('YYYY-MM-') + '05';
+      this.datepicker.setDate(new Date(dateStr));
+      this.specialRange = true;
+    } else if (range === 'yesterday') {
+      let yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      this.datepicker.setDate(yesterday);
+      this.specialRange = true;
+    } else {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Set datepicker based on provided date or range
+   * @param {String} dateInput - either a range like 'last-month', 'yesterday' or date with format 'YYYY-MM-DD'
+   * @returns {null} nothing
+   */
+  setDate(dateInput) {
+    // attempt to parse date to determine if we were given a range
+    const date = Date.parse(dateInput);
+
+    if (isNaN(date)) {
+      // invalid date, so attempt to set as special range, or default range if range is invalid
+      this.setSpecialRange(dateInput) || this.setSpecialRange(this.config.defaults.dateRange);
+    } else {
+      this.datepicker.setDate(new Date(dateInput));
+    }
+  }
+
+  /**
    * Parses the URL query string and sets all the inputs accordingly
    * Should only be called on initial page load, until we decide to support pop states (probably never)
    * @returns {null} nothing
    */
   popParams() {
     this.startSpinny();
-    let startDate, endDate, params = this.parseQueryString('excludes');
+    const params = this.parseQueryString('excludes');
 
     $(this.config.projectInput).val(params.project || this.config.defaults.project);
     if (this.validateProject()) return;
 
     this.patchUsage();
 
-    /**
-     * Check if we're using a valid range, and if so ignore any start/end dates.
-     * If an invalid range, throw and error and use default dates.
-     */
-    if (params.range) {
-      if (!this.setSpecialRange(params.range)) {
-        this.addSiteNotice('danger', $.i18n('param-error-3'), $.i18n('invalid-params'), true);
-        this.setSpecialRange(this.config.defaults.dateRange);
-      }
-    } else if (params.start) {
-      startDate = moment(params.start || moment().subtract(this.config.defaults.daysAgo, 'days'));
-      endDate = moment(params.end || Date.now());
-      if (startDate < this.config.minDate || endDate < this.config.minDate) {
-        this.addSiteNotice('danger', $.i18n('param-error-1', `${$.i18n('july')} 2015`), $.i18n('invalid-params'), true);
-        this.resetView();
-        return;
-      } else if (startDate > endDate) {
-        this.addSiteNotice('warning', $.i18n('param-error-2'), $.i18n('invalid-params'), true);
-        this.resetView();
-        return;
-      }
-      /** directly assign startDate before calling setEndDate so events will be fired once */
-      this.daterangepicker.startDate = startDate;
-      this.daterangepicker.setEndDate(endDate);
-    } else {
-      this.setSpecialRange(this.config.defaults.dateRange);
-    }
+    this.setDate(params.date);
 
     $(this.config.platformSelector).val(params.platform || 'all-access');
 
@@ -440,26 +458,31 @@ class TopViews extends Pv {
 
   /**
    * sets up the daterange selector and adds listeners
+   * @param {String} [type] - either 'monthly' or 'daily'
    * @returns {null} - nothing
    */
-  setupDateRangeSelector() {
-    super.setupDateRangeSelector();
+  setupDateRangeSelector(type = 'monthly') {
+    let yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
 
-    const dateRangeSelector = $(this.config.dateRangeSelector);
+    const datepickerParams = type === 'monthly' ? {
+      format: 'MM yyyy',
+      viewMode: 'months',
+      minViewMode: 'months',
+      endDate: '-1m'
+    } : {
+      format: 'yyyy-mm-dd',
+      viewMode: 'days',
+      endDate: yesterday
+    };
 
-    /** the "Latest N days" links */
-    $('.date-latest a').on('click', function(e) {
-      this.setSpecialRange(`latest-${$(this).data('value')}`);
-    });
-
-    dateRangeSelector.on('apply.daterangepicker', (e, action) => {
-      if (action.chosenLabel === $.i18n('custom-range')) {
-        this.specialRange = null;
-
-        /** force events to re-fire since apply.daterangepicker occurs before 'change' event */
-        this.daterangepicker.updateElement();
-      }
-    });
+    $(this.config.dateRangeSelector).datepicker('destroy');
+    $(this.config.dateRangeSelector).datepicker(
+      Object.assign({
+        autoclose: true,
+        startDate: new Date('2015-07-01')
+      }, datepickerParams)
+    );
   }
 
   /**
@@ -470,6 +493,9 @@ class TopViews extends Pv {
     super.setupListeners();
 
     $(this.config.platformSelector).on('change', this.processInput.bind(this));
+    $('#date-type-select').on('change', e => {
+      this.setupDateRangeSelector(e.target.value);
+    });
     $('.expand-chart').on('click', () => {
       this.offset += this.config.pageSize;
       this.drawData();
@@ -502,6 +528,36 @@ class TopViews extends Pv {
   }
 
   /**
+   * Get instance of datepicker
+   * @return {Object} the datepicker instance
+   */
+  get datepicker() {
+    return $(this.config.dateRangeSelector).data('datepicker');
+  }
+
+  /**
+   * Are we in 'monthly' mode? (If we aren't then we're in daily)
+   * @return {Boolean} yes or no
+   */
+  isMonthly() {
+    return $('#date-type-select').val() === 'monthly';
+  }
+
+  /**
+   * Get the currently selected date for the purposes of pageviews API call
+   * @return {String} formatted date
+   */
+  getAPIDate() {
+    const datepickerValue = this.datepicker.getDate();
+
+    if (this.isMonthly()) {
+      return moment(datepickerValue).format('YYYY/MM') + '/all-days';
+    } else {
+      return moment(datepickerValue).format('YYYY/MM/DD');
+    }
+  }
+
+  /**
    * Fetch data from API
    * @returns {Deferred} promise with data
    */
@@ -511,48 +567,20 @@ class TopViews extends Pv {
     this.startSpinny();
     $('.expand-chart').hide();
 
-    /** Collect parameters from inputs. */
-    const startDate = this.daterangepicker.startDate,
-      endDate = this.daterangepicker.endDate,
-      access = $(this.config.platformSelector).val();
+    const access = $(this.config.platformSelector).val();
 
-    let promises = [], initPageData = {};
-
-    for (let date = moment(startDate); date.isBefore(endDate); date.add(1, 'd')) {
-      promises.push($.ajax({
-        url: `https://wikimedia.org/api/rest_v1/metrics/pageviews/top/${this.project}/${access}/${date.format('YYYY/MM/DD')}`,
-        dataType: 'json'
-      }));
-    }
-
-    return $.when(...promises).then((...data) => {
-      if (promises.length === 1) data = [data];
-
-      /** import data and do summations */
-      data.forEach(day => {
-        day[0].items[0].articles.forEach(item => {
-          const article = item.article.replace(/_/g, ' ');
-
-          if (initPageData[article]) {
-            initPageData[article] += item.views;
-          } else {
-            initPageData[article] = item.views;
-          }
-        });
+    $.ajax({
+      url: `https://wikimedia.org/api/rest_v1/metrics/pageviews/top/${this.project}/${access}/${this.getAPIDate()}`,
+      dataType: 'json'
+    }).done(data => {
+      // store pageData from API, removing underscores from the page name
+      this.pageData = data.items[0].articles.map(page => {
+        page.article = page.article.descore();
+        return page;
       });
 
-      /** sort given new view counts */
-      let sortable = [];
-      for (let page in initPageData) {
-        sortable.push({
-          article: page,
-          views: initPageData[page]
-        });
-      }
-      this.pageData = sortable.sort((a, b) => b.views - a.views);
-
-      /** ...and build the pageNames array for Select2 */
-      this.pageNames = this.pageData.map(value => value.article);
+      /** build the pageNames array for Select2 */
+      this.pageNames = this.pageData.map(page => page.article);
 
       if (this.excludes.length) {
         return dfd.resolve(this.pageData);
@@ -563,6 +591,8 @@ class TopViews extends Pv {
         });
       }
     });
+
+    return dfd;
   }
 
   /**

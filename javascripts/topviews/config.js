@@ -16,7 +16,7 @@ const config = {
   dateRangeSelector: '.aqs-date-range-selector',
   dateLimit: 31, // num days
   defaults: {
-    dateRange: 'last-week',
+    dateRange: 'last-month',
     daysAgo: 7,
     excludes: [],
     project: 'en.wikipedia.org'
