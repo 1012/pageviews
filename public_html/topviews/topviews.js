@@ -4194,7 +4194,7 @@ var TopViews = function (_Pv) {
     key: 'getPageviewsURL',
     value: function getPageviewsURL(article) {
       // first get the date range
-      var date = moment(app.datepicker.getDate());
+      var date = moment(this.datepicker.getDate());
       var startDate = void 0,
           endDate = void 0;
       if (this.isMonthly()) {

@@ -178,7 +178,7 @@ class TopViews extends Pv {
    */
   getPageviewsURL(article) {
     // first get the date range
-    const date = moment(app.datepicker.getDate());
+    const date = moment(this.datepicker.getDate());
     let startDate, endDate;
     if (this.isMonthly()) {
       startDate = date.format('YYYY-MM-01');
