@@ -43,7 +43,7 @@
           </div>
           <div class="col-lg-3 col-sm-3">
             <label for="range-input">
-              <?php echo $I18N->msg( 'dates' ); ?>
+              Date
             </label>
             <input class="form-control aqs-date-range-selector" id="range-input">
           </div>

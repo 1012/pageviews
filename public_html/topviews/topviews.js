@@ -4520,6 +4520,7 @@ var TopViews = function (_Pv) {
      * sets up the daterange selector and adds listeners
      * @param {String} [type] - either 'monthly' or 'daily'
      * @returns {null} - nothing
+     * @override
      */
 
   }, {
@@ -4563,6 +4564,7 @@ var TopViews = function (_Pv) {
       $(this.config.platformSelector).on('change', this.processInput.bind(this));
       $('#date-type-select').on('change', function (e) {
         _this10.setupDateRangeSelector(e.target.value);
+        _this10.setSpecialRange(_this10.isMonthly() ? 'last-month' : 'yesterday');
       });
       $('.expand-chart').on('click', function () {
         _this10.offset += _this10.config.pageSize;

@@ -460,6 +460,7 @@ class TopViews extends Pv {
    * sets up the daterange selector and adds listeners
    * @param {String} [type] - either 'monthly' or 'daily'
    * @returns {null} - nothing
+   * @override
    */
   setupDateRangeSelector(type = 'monthly') {
     let yesterday = new Date();
@@ -495,6 +496,7 @@ class TopViews extends Pv {
     $(this.config.platformSelector).on('change', this.processInput.bind(this));
     $('#date-type-select').on('change', e => {
       this.setupDateRangeSelector(e.target.value);
+      this.setSpecialRange(this.isMonthly() ? 'last-month' : 'yesterday');
     });
     $('.expand-chart').on('click', () => {
       this.offset += this.config.pageSize;
