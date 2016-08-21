@@ -76,7 +76,8 @@ class TopViews extends Pv {
 
       $('.chart-container').append(
         `<div class='topview-entry' style='background:linear-gradient(${direction}, #EEE ${width}%, transparent ${width}%)'>
-         <span class='topview-entry--remove glyphicon glyphicon-remove' data-article-id=${index - 1} aria-hidden='true'></span>
+         <span class='topview-entry--remove glyphicon glyphicon-remove' data-article-id=${index - 1}
+           title='Remove this page from Topviews rankings' aria-hidden='true'></span>
          <span class='topview-entry--rank'>${++count}</span>
          <a class='topview-entry--label' href="${this.getPageURL(item.article)}" target="_blank">${item.article}</a>
          <span class='topview-entry--leader'></span>
@@ -457,7 +458,7 @@ class TopViews extends Pv {
   }
 
   /**
-   * sets up the daterange selector and adds listeners
+   * sets up the datepicker based on given type
    * @param {String} [type] - either 'monthly' or 'daily'
    * @returns {null} - nothing
    * @override
@@ -481,7 +482,7 @@ class TopViews extends Pv {
     $(this.config.dateRangeSelector).datepicker(
       Object.assign({
         autoclose: true,
-        startDate: new Date('2015-07-01')
+        startDate: new Date(this.config.minDate.format())
       }, datepickerParams)
     );
   }
@@ -587,8 +588,8 @@ class TopViews extends Pv {
       if (this.excludes.length) {
         return dfd.resolve(this.pageData);
       } else {
-        /** find first 30 non-mainspace pages and exclude them */
-        this.filterByNamespace(this.pageNames.slice(0, 30)).done(() => {
+        this.filterOutNamespace(this.pageNames).done(pageNames => {
+          this.pageData = this.pageData.filter(page => pageNames.includes(page.article));
           return dfd.resolve(this.pageData);
         });
       }
@@ -600,45 +601,55 @@ class TopViews extends Pv {
   /**
    * Get the pages that are not in the given namespace
    * @param {array} pages - pages to filter
-   * @param  {Number} [ns] - namespace to restrict to, defaults to main
-   * @return {Deferred} promise resolving with page titles that are not in the given namespace
+   * @param {Number} [ns] - ID of the namespace to restrict to, defaults to 0 (mainspace)
+   * @return {Array} pages in given namespace
    */
-  filterByNamespace(pages, ns = 0) {
+  filterOutNamespace(pages, ns = 0) {
     let dfd = $.Deferred();
 
-    return $.ajax({
-      url: `https://${this.project}.org/w/api.php`,
-      data: {
-        action: 'query',
-        titles: pages.join('|'),
-        meta: 'siteinfo',
-        siprop: 'general',
-        format: 'json'
-      },
-      prop: 'info',
-      dataType: 'jsonp'
-    }).always(data => {
-      if (data && data.query && data.query.pages) {
-        let normalizeMap = {};
-        (data.query.normalized || []).map(entry => {
-          normalizeMap[entry.to] = entry.from;
-        });
+    const doFiltering = data => {
+      if (data && data.query && data.query.namespaces) {
+        // include main page as non-mainspace
+        let nonMainspaceNames = [data.query.general.mainpage];
 
-        let excludes = [data.query.general.mainpage];
-        Object.keys(data.query.pages).forEach(key => {
-          const page = data.query.pages[key];
-          if (page.ns !== ns || page.missing === '') {
-            const title = data.query.pages[key].title,
-              normalizedTitle = normalizeMap[title];
-            delete normalizeMap[title];
-            excludes.push(normalizedTitle || title);
-          }
+        for (ns in data.query.namespaces) {
+          nonMainspaceNames.push(data.query.namespaces[ns]['*']);
+        }
+
+        // use namespace prefixes to filter out non-mainspace pages
+        pages = pages.filter(page => {
+          const ns = page.split(':')[0];
+          return ns && !nonMainspaceNames.includes(ns);
         });
-        this.addExclude(excludes);
       }
 
-      dfd.resolve();
-    });
+      dfd.resolve(pages);
+    };
+
+    const cacheKey = `pageviews-siteinfo-${this.project}`;
+
+    // use cached site info if present
+    if (simpleStorage.hasKey(cacheKey)) {
+      doFiltering(simpleStorage.get(cacheKey));
+    } else {
+      // otherwise fetch siteinfo and store in cache
+      $.ajax({
+        url: `https://${this.project}.org/w/api.php`,
+        data: {
+          action: 'query',
+          meta: 'siteinfo',
+          siprop: 'general|namespaces',
+          format: 'json'
+        },
+        dataType: 'jsonp'
+      }).always(data => {
+        // cache for one week (TTL is in milliseconds)
+        simpleStorage.set(cacheKey, data, {TTL: 1000 * 60 * 60 * 24 * 7});
+        doFiltering(data);
+      });
+    }
+
+    return dfd;
   }
 
   /**

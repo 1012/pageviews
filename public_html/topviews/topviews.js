@@ -3956,7 +3956,7 @@ var config = {
     excludes: [],
     project: 'en.wikipedia.org'
   },
-  pageSize: 20,
+  pageSize: 100,
   platformSelector: '#platform-select',
   projectInput: '.aqs-project-input',
   timestampFormat: 'YYYYMMDD00'
@@ -4074,7 +4074,7 @@ var TopViews = function (_Pv) {
         var width = 100 * (item.views / this.max),
             direction = !!i18nRtl ? 'to left' : 'to right';
 
-        $('.chart-container').append('<div class=\'topview-entry\' style=\'background:linear-gradient(' + direction + ', #EEE ' + width + '%, transparent ' + width + '%)\'>\n         <span class=\'topview-entry--remove glyphicon glyphicon-remove\' data-article-id=' + (index - 1) + ' aria-hidden=\'true\'></span>\n         <span class=\'topview-entry--rank\'>' + ++count + '</span>\n         <a class=\'topview-entry--label\' href="' + this.getPageURL(item.article) + '" target="_blank">' + item.article + '</a>\n         <span class=\'topview-entry--leader\'></span>\n         <a class=\'topview-entry--views\' href=\'' + this.getPageviewsURL(item.article) + '\'>' + this.formatNumber(item.views) + '</a></div>');
+        $('.chart-container').append('<div class=\'topview-entry\' style=\'background:linear-gradient(' + direction + ', #EEE ' + width + '%, transparent ' + width + '%)\'>\n         <span class=\'topview-entry--remove glyphicon glyphicon-remove\' data-article-id=' + (index - 1) + '\n           title=\'Remove this page from Topviews rankings\' aria-hidden=\'true\'></span>\n         <span class=\'topview-entry--rank\'>' + ++count + '</span>\n         <a class=\'topview-entry--label\' href="' + this.getPageURL(item.article) + '" target="_blank">' + item.article + '</a>\n         <span class=\'topview-entry--leader\'></span>\n         <a class=\'topview-entry--views\' href=\'' + this.getPageviewsURL(item.article) + '\'>' + this.formatNumber(item.views) + '</a></div>');
       }
 
       this.pushParams();
@@ -4517,7 +4517,7 @@ var TopViews = function (_Pv) {
     }
 
     /**
-     * sets up the daterange selector and adds listeners
+     * sets up the datepicker based on given type
      * @param {String} [type] - either 'monthly' or 'daily'
      * @returns {null} - nothing
      * @override
@@ -4545,7 +4545,7 @@ var TopViews = function (_Pv) {
       $(this.config.dateRangeSelector).datepicker('destroy');
       $(this.config.dateRangeSelector).datepicker(Object.assign({
         autoclose: true,
-        startDate: new Date('2015-07-01')
+        startDate: new Date(this.config.minDate.format())
       }, datepickerParams));
     }
 
@@ -4671,8 +4671,10 @@ var TopViews = function (_Pv) {
         if (_this12.excludes.length) {
           return dfd.resolve(_this12.pageData);
         } else {
-          /** find first 30 non-mainspace pages and exclude them */
-          _this12.filterByNamespace(_this12.pageNames.slice(0, 30)).done(function () {
+          _this12.filterOutNamespace(_this12.pageNames).done(function (pageNames) {
+            _this12.pageData = _this12.pageData.filter(function (page) {
+              return pageNames.includes(page.article);
+            });
             return dfd.resolve(_this12.pageData);
           });
         }
@@ -4684,54 +4686,62 @@ var TopViews = function (_Pv) {
     /**
      * Get the pages that are not in the given namespace
      * @param {array} pages - pages to filter
-     * @param  {Number} [ns] - namespace to restrict to, defaults to main
-     * @return {Deferred} promise resolving with page titles that are not in the given namespace
+     * @param {Number} [ns] - ID of the namespace to restrict to, defaults to 0 (mainspace)
+     * @return {Array} pages in given namespace
      */
 
   }, {
-    key: 'filterByNamespace',
-    value: function filterByNamespace(pages) {
-      var _this13 = this;
-
+    key: 'filterOutNamespace',
+    value: function filterOutNamespace(pages) {
       var ns = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
 
       var dfd = $.Deferred();
 
-      return $.ajax({
-        url: 'https://' + this.project + '.org/w/api.php',
-        data: {
-          action: 'query',
-          titles: pages.join('|'),
-          meta: 'siteinfo',
-          siprop: 'general',
-          format: 'json'
-        },
-        prop: 'info',
-        dataType: 'jsonp'
-      }).always(function (data) {
-        if (data && data.query && data.query.pages) {
+      var doFiltering = function doFiltering(data) {
+        if (data && data.query && data.query.namespaces) {
           (function () {
-            var normalizeMap = {};
-            (data.query.normalized || []).map(function (entry) {
-              normalizeMap[entry.to] = entry.from;
-            });
+            // include main page as non-mainspace
+            var nonMainspaceNames = [data.query.general.mainpage];
 
-            var excludes = [data.query.general.mainpage];
-            Object.keys(data.query.pages).forEach(function (key) {
-              var page = data.query.pages[key];
-              if (page.ns !== ns || page.missing === '') {
-                var title = data.query.pages[key].title,
-                    normalizedTitle = normalizeMap[title];
-                delete normalizeMap[title];
-                excludes.push(normalizedTitle || title);
-              }
+            for (ns in data.query.namespaces) {
+              nonMainspaceNames.push(data.query.namespaces[ns]['*']);
+            }
+
+            // use namespace prefixes to filter out non-mainspace pages
+            pages = pages.filter(function (page) {
+              var ns = page.split(':')[0];
+              return ns && !nonMainspaceNames.includes(ns);
             });
-            _this13.addExclude(excludes);
           })();
         }
 
-        dfd.resolve();
-      });
+        dfd.resolve(pages);
+      };
+
+      var cacheKey = 'pageviews-siteinfo-' + this.project;
+
+      // use cached site info if present
+      if (simpleStorage.hasKey(cacheKey)) {
+        doFiltering(simpleStorage.get(cacheKey));
+      } else {
+        // otherwise fetch siteinfo and store in cache
+        $.ajax({
+          url: 'https://' + this.project + '.org/w/api.php',
+          data: {
+            action: 'query',
+            meta: 'siteinfo',
+            siprop: 'general|namespaces',
+            format: 'json'
+          },
+          dataType: 'jsonp'
+        }).always(function (data) {
+          // cache for one week (TTL is in milliseconds)
+          simpleStorage.set(cacheKey, data, { TTL: 1000 * 60 * 60 * 24 * 7 });
+          doFiltering(data);
+        });
+      }
+
+      return dfd;
     }
 
     /**

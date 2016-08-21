@@ -21,7 +21,7 @@ const config = {
     excludes: [],
     project: 'en.wikipedia.org'
   },
-  pageSize: 20,
+  pageSize: 100,
   platformSelector: '#platform-select',
   projectInput: '.aqs-project-input',
   timestampFormat: 'YYYYMMDD00'

@@ -197,6 +197,7 @@ module.exports = function(grunt) {
           'public_html/topviews/application.js': coreJSDependencies.concat([
             'vendor/javascripts/select2.min.js',
             'vendor/javascripts/bootstrap-datepicker.min.js',
+            'vendor/javascripts/simpleStorage.js',
             'public_html/topviews/topviews.js'
           ]),
           'public_html/topviews/application.css': coreCSSDependencies.concat([
