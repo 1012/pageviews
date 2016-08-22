@@ -2951,7 +2951,6 @@ var PvConfig = function () {
         }
       },
       minDate: moment('2015-07-01').startOf('day'),
-      minDateI18n: $.i18n('july') + ' 2015',
       maxDate: moment().subtract(1, 'days').startOf('day'),
       specialRanges: {
         'last-week': [moment().subtract(1, 'week').startOf('week'), moment().subtract(1, 'week').endOf('week')],
