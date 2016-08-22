@@ -30,20 +30,20 @@
           <!-- Date range selector -->
           <div class="col-lg-3 col-sm-3">
             <label>
-              Date type
+              <?php echo $I18N->msg( 'date-type' ); ?>
             </label>
             <select class="form-control" id="date-type-select">
               <option value="monthly">
-                Monthly
+                <?php echo $I18N->msg( 'monthly' ); ?>
               </option>
               <option value="daily">
-                Daily
+                <?php echo $I18N->msg( 'daily' ); ?>
               </option>
             </select>
           </div>
           <div class="col-lg-3 col-sm-3">
             <label for="range-input">
-              Date
+              <?php echo $I18N->msg( 'date' ); ?>
             </label>
             <input class="form-control aqs-date-range-selector" id="range-input">
           </div>
@@ -80,6 +80,12 @@
             <label for="article-input">
               <?php echo $I18N->msg( 'excluded-pages' ); ?>
             </label>
+            <span class="pull-right">
+              <label>
+                <input class="mainspace-only-option" type="checkbox" checked="checked">
+                <?php echo $I18N->msg( 'mainspace-only-option' ); ?>
+              </label>
+            </span>
             <select class="aqs-select2-selector col-lg-12 invisible" id="article-input" multiple="multiple"></select>
           </div>
         </div>
@@ -100,7 +106,6 @@
         <!-- Chart -->
         <div class="col-lg-12">
           <small class="text-muted">
-            <?php echo $I18N->msg( 'topviews-data-approx' ); ?>
             <?php echo $I18N->msg( 'topviews-false-positive' ); ?>
           </small>
         </div>

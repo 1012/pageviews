@@ -2302,10 +2302,10 @@ var Pv = function (_PvConfig) {
         }
       });
 
-      this.daterangepicker.locale.format = this.dateFormat;
-      this.daterangepicker.updateElement();
-
       if (this.app !== 'topviews') {
+        this.daterangepicker.locale.format = this.dateFormat;
+        this.daterangepicker.updateElement();
+
         this.setupSelect2Colors();
 
         /**
@@ -4228,6 +4228,8 @@ var TopViews = function (_Pv) {
         platform: $(this.config.platformSelector).val()
       };
 
+      var datepickerValue = this.datepicker.getDate();
+
       /**
        * Override start and end with custom range values, if configured (set by URL params or setupDateRangeSelector)
        * Valid values are those defined in config.specialRanges, constructed like `{range: 'last-month'}`,
@@ -4235,8 +4237,10 @@ var TopViews = function (_Pv) {
        */
       if (this.specialRange && specialRange) {
         params.date = this.specialRange.range;
+      } else if (this.isMonthly()) {
+        params.date = moment(datepickerValue).format('YYYY-MM');
       } else {
-        params.date = moment(this.datepicker.getDate()).format('YYYY-MM-DD');
+        params.date = moment(datepickerValue).format('YYYY-MM-DD');
       }
 
       return params;
@@ -4267,13 +4271,20 @@ var TopViews = function (_Pv) {
     value: function setSpecialRange(range) {
       if (range === 'last-month') {
         // '05' is an arbitrary date past the 1st to get around timezone conversion
-        var dateStr = moment().subtract(1, 'month').format('YYYY-MM-') + '05';
-        this.datepicker.setDate(new Date(dateStr));
-        this.specialRange = true;
+        var dateStr = moment().subtract(1, 'month').format('YYYY-MM-') + '05',
+            dateObj = new Date(dateStr);
+        this.datepicker.setDate(dateObj);
+        this.specialRange = {
+          range: range,
+          value: moment(dateObj).format('YYYY/MM')
+        };
       } else if (range === 'yesterday') {
         var _dateStr = moment().subtract(1, 'day').format('YYYY-MM-DD');
         this.datepicker.setDate(_dateStr);
-        this.specialRange = true;
+        this.specialRange = {
+          range: range,
+          value: _dateStr
+        };
       } else {
         return false;
       }
@@ -4575,6 +4586,7 @@ var TopViews = function (_Pv) {
         }
         _this10.processInput();
       });
+      $('.mainspace-only-option').on('click', this.processInput.bind(this));
       $('#topviews_search_field').on('keyup', this.searchTopviews.bind(this));
       $('.topviews-search-icon').on('click', this.clearSearch.bind(this));
     }
@@ -4666,9 +4678,7 @@ var TopViews = function (_Pv) {
           return page.article;
         });
 
-        if (_this12.excludes.length) {
-          return dfd.resolve(_this12.pageData);
-        } else {
+        if ($('.mainspace-only-option').is(':checked')) {
           _this12.filterOutNamespace(_this12.pageNames).done(function (pageNames) {
             _this12.pageNames = pageNames;
             _this12.pageData = _this12.pageData.filter(function (page) {
@@ -4676,6 +4686,8 @@ var TopViews = function (_Pv) {
             });
             return dfd.resolve(_this12.pageData);
           });
+        } else {
+          return dfd.resolve(_this12.pageData);
         }
       });
 

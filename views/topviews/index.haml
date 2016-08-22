@@ -25,15 +25,15 @@
           / Date range selector
           %div.col-lg-3.col-sm-3
             %label
-              Date type
+              = $I18N->msg( 'date-type' )
             %select.form-control#date-type-select
               %option(value="monthly")
-                Monthly
+                = $I18N->msg( 'monthly' )
               %option(value="daily")
-                Daily
+                = $I18N->msg( 'daily' )
           %div.col-lg-3.col-sm-3
             %label(for="range-input")
-              Date
+              = $I18N->msg( 'date' )
             %input.form-control.aqs-date-range-selector#range-input
 
           / Project selector
@@ -60,6 +60,10 @@
           %div.col-lg-12
             %label(for="article-input")
               = $I18N->msg( 'excluded-pages' )
+            %span.pull-right
+              %label
+                %input.mainspace-only-option(type="checkbox" checked="checked")
+                = $I18N->msg( 'mainspace-only-option' )
             %select.aqs-select2-selector.col-lg-12.invisible#article-input(multiple="multiple")
 
         / FIXME: use flexbox and not hacky per-project workaround to make input and data links stay on the same line
@@ -77,7 +81,6 @@
         / Chart
         %div.col-lg-12
           %small.text-muted
-            = $I18N->msg( 'topviews-data-approx' )
             = $I18N->msg( 'topviews-false-positive' )
         %div.chart-container.col-lg-12.loading
 

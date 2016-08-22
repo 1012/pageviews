@@ -261,5 +261,10 @@
 	"localization": "Label for localization options in the settings interface.",
 	"chart-preferences": "Label for chart options in the settings interface.",
 	"auto-pagepile-error": "Error message shown when an automated PagePile failed to generate. $1 is the title 'PagePile' (not translatable) and $2 is the number of pages the tool will use instead of the PagePile.",
-	"metric": "Header for the dropdown to choose which metric to view statistics for in the Siteviews app, such as 'Pageviews' or 'Unique devices'.\n{{Identical|Metric}}"
+	"metric": "Header for the dropdown to choose which metric to view statistics for in the Siteviews app, such as 'Pageviews' or 'Unique devices'.\n{{Identical|Metric}}",
+	"date-type": "Header for the part of the interface that lets the user select which date type they want to view statistics for.",
+	"date": "Header for the part of the interface that lets the user select a date in the Topviews app. This may have the same translation as the 'dates' message, except singular.\n{{Identical|Date}}",
+	"monthly": "Label for option to view statistics for on a monthly basis in the Topviews app\n{{Identical|Monthly}}",
+	"daily": "Label for option to view statistics for on a daily basis in the Topviews app\n{{Identical|Daily}}",
+	"mainspace-only-option": "Label to show only mainspace pages in the Topviews app."
 }

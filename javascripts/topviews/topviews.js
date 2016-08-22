@@ -207,6 +207,8 @@ class TopViews extends Pv {
       platform: $(this.config.platformSelector).val()
     };
 
+    const datepickerValue = this.datepicker.getDate();
+
     /**
      * Override start and end with custom range values, if configured (set by URL params or setupDateRangeSelector)
      * Valid values are those defined in config.specialRanges, constructed like `{range: 'last-month'}`,
@@ -214,8 +216,10 @@ class TopViews extends Pv {
      */
     if (this.specialRange && specialRange) {
       params.date = this.specialRange.range;
+    } else if (this.isMonthly()) {
+      params.date = moment(datepickerValue).format('YYYY-MM');
     } else {
-      params.date = moment(this.datepicker.getDate()).format('YYYY-MM-DD');
+      params.date = moment(datepickerValue).format('YYYY-MM-DD');
     }
 
     return params;
@@ -240,13 +244,20 @@ class TopViews extends Pv {
   setSpecialRange(range) {
     if (range === 'last-month') {
       // '05' is an arbitrary date past the 1st to get around timezone conversion
-      const dateStr = moment().subtract(1, 'month').format('YYYY-MM-') + '05';
-      this.datepicker.setDate(new Date(dateStr));
-      this.specialRange = true;
+      const dateStr = moment().subtract(1, 'month').format('YYYY-MM-') + '05',
+        dateObj = new Date(dateStr);
+      this.datepicker.setDate(dateObj);
+      this.specialRange = {
+        range,
+        value: moment(dateObj).format('YYYY/MM')
+      };
     } else if (range === 'yesterday') {
       const dateStr = moment().subtract(1, 'day').format('YYYY-MM-DD');
       this.datepicker.setDate(dateStr);
-      this.specialRange = true;
+      this.specialRange = {
+        range,
+        value: dateStr
+      };
     } else {
       return false;
     }
@@ -508,6 +519,7 @@ class TopViews extends Pv {
       }
       this.processInput();
     });
+    $('.mainspace-only-option').on('click', this.processInput.bind(this));
     $('#topviews_search_field').on('keyup', this.searchTopviews.bind(this));
     $('.topviews-search-icon').on('click', this.clearSearch.bind(this));
   }
@@ -583,14 +595,14 @@ class TopViews extends Pv {
       /** build the pageNames array for Select2 */
       this.pageNames = this.pageData.map(page => page.article);
 
-      if (this.excludes.length) {
-        return dfd.resolve(this.pageData);
-      } else {
+      if ($('.mainspace-only-option').is(':checked')) {
         this.filterOutNamespace(this.pageNames).done(pageNames => {
           this.pageNames = pageNames;
           this.pageData = this.pageData.filter(page => pageNames.includes(page.article));
           return dfd.resolve(this.pageData);
         });
+      } else {
+        return dfd.resolve(this.pageData);
       }
     });
 

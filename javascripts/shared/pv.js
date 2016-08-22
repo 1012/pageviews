@@ -830,10 +830,10 @@ class Pv extends PvConfig {
       }
     });
 
-    this.daterangepicker.locale.format = this.dateFormat;
-    this.daterangepicker.updateElement();
-
     if (this.app !== 'topviews') {
+      this.daterangepicker.locale.format = this.dateFormat;
+      this.daterangepicker.updateElement();
+
       this.setupSelect2Colors();
 
       /**
