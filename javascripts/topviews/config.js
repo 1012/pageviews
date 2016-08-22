@@ -14,7 +14,6 @@ const pv = require('../shared/pv');
 const config = {
   articleSelector: '.aqs-select2-selector',
   dateRangeSelector: '.aqs-date-range-selector',
-  dateLimit: 31, // num days
   defaults: {
     dateRange: 'last-month',
     daysAgo: 7,

@@ -244,9 +244,8 @@ class TopViews extends Pv {
       this.datepicker.setDate(new Date(dateStr));
       this.specialRange = true;
     } else if (range === 'yesterday') {
-      let yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      this.datepicker.setDate(yesterday);
+      const dateStr = moment().subtract(1, 'day').format('YYYY-MM-DD');
+      this.datepicker.setDate(dateStr);
       this.specialRange = true;
     } else {
       return false;
@@ -464,8 +463,7 @@ class TopViews extends Pv {
    * @override
    */
   setupDateRangeSelector(type = 'monthly') {
-    let yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = moment().subtract(1, 'day').format('YYYY-MM-DD');
 
     const datepickerParams = type === 'monthly' ? {
       format: 'MM yyyy',
@@ -475,7 +473,7 @@ class TopViews extends Pv {
     } : {
       format: 'yyyy-mm-dd',
       viewMode: 'days',
-      endDate: yesterday
+      endDate: yesterdayStr
     };
 
     $(this.config.dateRangeSelector).datepicker('destroy');
@@ -589,6 +587,7 @@ class TopViews extends Pv {
         return dfd.resolve(this.pageData);
       } else {
         this.filterOutNamespace(this.pageNames).done(pageNames => {
+          this.pageNames = pageNames;
           this.pageData = this.pageData.filter(page => pageNames.includes(page.article));
           return dfd.resolve(this.pageData);
         });

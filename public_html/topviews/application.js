@@ -4841,6 +4841,7 @@ var PvConfig = function () {
         }
       },
       minDate: moment('2015-07-01').startOf('day'),
+      minDateI18n: $.i18n('july') + ' 2015',
       maxDate: moment().subtract(1, 'days').startOf('day'),
       specialRanges: {
         'last-week': [moment().subtract(1, 'week').startOf('week'), moment().subtract(1, 'week').endOf('week')],
@@ -5839,7 +5840,6 @@ var pv = require('../shared/pv');
 var config = {
   articleSelector: '.aqs-select2-selector',
   dateRangeSelector: '.aqs-date-range-selector',
-  dateLimit: 31, // num days
   defaults: {
     dateRange: 'last-month',
     daysAgo: 7,
@@ -6161,9 +6161,8 @@ var TopViews = function (_Pv) {
         this.datepicker.setDate(new Date(dateStr));
         this.specialRange = true;
       } else if (range === 'yesterday') {
-        var yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        this.datepicker.setDate(yesterday);
+        var _dateStr = moment().subtract(1, 'day').format('YYYY-MM-DD');
+        this.datepicker.setDate(_dateStr);
         this.specialRange = true;
       } else {
         return false;
@@ -6418,8 +6417,7 @@ var TopViews = function (_Pv) {
     value: function setupDateRangeSelector() {
       var type = arguments.length <= 0 || arguments[0] === undefined ? 'monthly' : arguments[0];
 
-      var yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
+      var yesterdayStr = moment().subtract(1, 'day').format('YYYY-MM-DD');
 
       var datepickerParams = type === 'monthly' ? {
         format: 'MM yyyy',
@@ -6429,7 +6427,7 @@ var TopViews = function (_Pv) {
       } : {
         format: 'yyyy-mm-dd',
         viewMode: 'days',
-        endDate: yesterday
+        endDate: yesterdayStr
       };
 
       $(this.config.dateRangeSelector).datepicker('destroy');
@@ -6562,6 +6560,7 @@ var TopViews = function (_Pv) {
           return dfd.resolve(_this12.pageData);
         } else {
           _this12.filterOutNamespace(_this12.pageNames).done(function (pageNames) {
+            _this12.pageNames = pageNames;
             _this12.pageData = _this12.pageData.filter(function (page) {
               return pageNames.includes(page.article);
             });
