@@ -4082,9 +4082,9 @@ var Pv = function (_PvConfig) {
   }, {
     key: 'patchUsage',
     value: function patchUsage(app) {
-      if (location.host !== 'localhost') {
+      if (metaRoot) {
         $.ajax({
-          url: '//tools.wmflabs.org/musikanimal/api/' + app + '_uses/' + (this.project || i18nLang),
+          url: '//' + metaRoot + '/' + this.app + '/' + (this.project || i18nLang),
           method: 'PATCH'
         });
       }
@@ -4685,6 +4685,7 @@ var PvConfig = function () {
     var self = this;
 
     this.config = {
+      apps: ['pageviews', 'topviews', 'langviews', 'siteviews', 'massviews', 'redirectviews'],
       chartConfig: {
         line: {
           opts: {
@@ -5983,9 +5984,7 @@ var TopViews = function (_Pv) {
     value: function drawData() {
       var _this2 = this;
 
-      this.stopSpinny();
       $('.chart-container').html('');
-      $('.expand-chart').show();
 
       var count = 0,
           index = 0;
@@ -6003,8 +6002,7 @@ var TopViews = function (_Pv) {
       }
 
       this.pushParams();
-      $('.data-links').removeClass('invisible');
-      $('.search-topviews').removeClass('invisible');
+      this.stopSpinny();
 
       $('.topview-entry--remove').off('click').on('click', function (e) {
         var pageName = _this2.pageNames[$(e.target).data('article-id')];
@@ -6254,7 +6252,7 @@ var TopViews = function (_Pv) {
       $(this.config.projectInput).val(params.project || this.config.defaults.project);
       if (this.validateProject()) return;
 
-      this.patchUsage('tv');
+      this.patchUsage();
 
       this.setDate(params.date);
 
@@ -6328,9 +6326,6 @@ var TopViews = function (_Pv) {
       this.pageNames = [];
       this.stopSpinny();
       $('.chart-container').html('');
-      $('.expand-chart').hide();
-      $('.data-links').addClass('invisible');
-      $('.search-topviews').addClass('invisible');
       $('.message-container').html('');
       if (clearSelector) {
         this.resetArticleSelector();
@@ -6538,6 +6533,38 @@ var TopViews = function (_Pv) {
     }
 
     /**
+     * Add the loading indicator class and set the safeguard timeout
+     * @returns {null} nothing
+     * @override
+     */
+
+  }, {
+    key: 'startSpinny',
+    value: function startSpinny() {
+      _get(Object.getPrototypeOf(TopViews.prototype), 'startSpinny', this).call(this);
+      $('.expand-chart').hide();
+      $('.data-links').addClass('invisible');
+      $('.search-topviews').addClass('invisible');
+      $('.data-notice').addClass('invisible');
+    }
+
+    /**
+     * Remove loading indicator class and clear the safeguard timeout
+     * @returns {null} nothing
+     * @override
+     */
+
+  }, {
+    key: 'stopSpinny',
+    value: function stopSpinny() {
+      _get(Object.getPrototypeOf(TopViews.prototype), 'stopSpinny', this).call(this);
+      $('.data-links').removeClass('invisible');
+      $('.search-topviews').removeClass('invisible');
+      $('.data-notice').removeClass('invisible');
+      $('.expand-chart').show();
+    }
+
+    /**
      * Get instance of datepicker
      * @return {Object} the datepicker instance
      */
@@ -6584,7 +6611,6 @@ var TopViews = function (_Pv) {
       var dfd = $.Deferred();
 
       this.startSpinny();
-      $('.expand-chart').hide();
 
       var access = $(this.config.platformSelector).val();
 

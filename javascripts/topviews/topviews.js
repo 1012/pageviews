@@ -59,9 +59,7 @@ class TopViews extends Pv {
    * @returns {null} nothing
    */
   drawData() {
-    this.stopSpinny();
     $('.chart-container').html('');
-    $('.expand-chart').show();
 
     let count = 0, index = 0;
 
@@ -86,8 +84,7 @@ class TopViews extends Pv {
     }
 
     this.pushParams();
-    $('.data-links').removeClass('invisible');
-    $('.search-topviews').removeClass('invisible');
+    this.stopSpinny();
 
     $('.topview-entry--remove').off('click').on('click', e => {
       const pageName = this.pageNames[$(e.target).data('article-id')];
@@ -355,9 +352,6 @@ class TopViews extends Pv {
     this.pageNames = [];
     this.stopSpinny();
     $('.chart-container').html('');
-    $('.expand-chart').hide();
-    $('.data-links').addClass('invisible');
-    $('.search-topviews').addClass('invisible');
     $('.message-container').html('');
     if (clearSelector) {
       this.resetArticleSelector();
@@ -541,6 +535,32 @@ class TopViews extends Pv {
   }
 
   /**
+   * Add the loading indicator class and set the safeguard timeout
+   * @returns {null} nothing
+   * @override
+   */
+  startSpinny() {
+    super.startSpinny();
+    $('.expand-chart').hide();
+    $('.data-links').addClass('invisible');
+    $('.search-topviews').addClass('invisible');
+    $('.data-notice').addClass('invisible');
+  }
+
+  /**
+   * Remove loading indicator class and clear the safeguard timeout
+   * @returns {null} nothing
+   * @override
+   */
+  stopSpinny() {
+    super.stopSpinny();
+    $('.data-links').removeClass('invisible');
+    $('.search-topviews').removeClass('invisible');
+    $('.data-notice').removeClass('invisible');
+    $('.expand-chart').show();
+  }
+
+  /**
    * Get instance of datepicker
    * @return {Object} the datepicker instance
    */
@@ -578,7 +598,6 @@ class TopViews extends Pv {
     let dfd = $.Deferred();
 
     this.startSpinny();
-    $('.expand-chart').hide();
 
     const access = $(this.config.platformSelector).val();
 

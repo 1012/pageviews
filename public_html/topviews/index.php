@@ -29,7 +29,7 @@
         <div class="row aqs-row options">
           <!-- Date range selector -->
           <div class="col-lg-3 col-sm-3">
-            <label>
+            <label for="date-type-select">
               <?php echo $I18N->msg( 'date-type' ); ?>
             </label>
             <select class="form-control" id="date-type-select">
@@ -104,7 +104,7 @@
           <?php include "../_data_links.php"; ?>
         </span>
         <!-- Chart -->
-        <div class="col-lg-12">
+        <div class="col-lg-12 data-notice invisible">
           <small class="text-muted">
             <?php echo $I18N->msg( 'topviews-false-positive' ); ?>
           </small>
