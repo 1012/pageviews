@@ -310,7 +310,7 @@ class TopViews extends Pv {
 
     $(this.config.platformSelector).val(params.platform || 'all-access');
 
-    this.excludes = params.excludes.map(exclude => exclude.descore());
+    this.excludes = (params.excludes || []).map(exclude => exclude.descore());
 
     this.params = location.search;
 
@@ -476,7 +476,7 @@ class TopViews extends Pv {
    * @override
    */
   setupDateRangeSelector(type = 'monthly') {
-    const yesterdayStr = moment().subtract(1, 'day').format('YYYY-MM-DD');
+    const yesterdayStr = moment().subtract(1, 'day').format(this.dateFormat);
     $('#date-type-select').val(type);
 
     const datepickerParams = type === 'monthly' ? {
@@ -485,7 +485,7 @@ class TopViews extends Pv {
       minViewMode: 'months',
       endDate: '-1m'
     } : {
-      format: 'yyyy-mm-dd',
+      format: this.dateFormat,
       viewMode: 'days',
       endDate: yesterdayStr
     };
@@ -570,6 +570,15 @@ class TopViews extends Pv {
       $('.data-notice').removeClass('invisible');
       $('.expand-chart').show();
     }
+  }
+
+  /**
+   * Get date format to use based on settings
+   * @returns {string} date format to passed to parser
+   * @override
+   */
+  get dateFormat() {
+    super.dateFormat.toLowerCase();
   }
 
   /**

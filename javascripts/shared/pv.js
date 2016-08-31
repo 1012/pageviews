@@ -301,6 +301,10 @@ class Pv extends PvConfig {
   }
 
   getLocaleDateString() {
+    if (!navigator.language) {
+      return this.config.defaults.dateFormat;
+    }
+
     const formats = {
       'ar-sa': 'DD/MM/YY',
       'bg-bg': 'DD.M.YYYY',
@@ -513,10 +517,6 @@ class Pv extends PvConfig {
       'sr-cyrl-ba': 'D.M.YYYY',
       'es-us': 'M/D/YYYY'
     };
-
-    if (!navigator.language) {
-      return this.config.defaults.dateFormat;
-    }
 
     const key = navigator.language.toLowerCase();
     return formats[key] || this.config.defaults.dateFormat;

@@ -3646,6 +3646,10 @@ var Pv = function (_PvConfig) {
   }, {
     key: 'getLocaleDateString',
     value: function getLocaleDateString() {
+      if (!navigator.language) {
+        return this.config.defaults.dateFormat;
+      }
+
       var formats = {
         'ar-sa': 'DD/MM/YY',
         'bg-bg': 'DD.M.YYYY',
@@ -3858,10 +3862,6 @@ var Pv = function (_PvConfig) {
         'sr-cyrl-ba': 'D.M.YYYY',
         'es-us': 'M/D/YYYY'
       };
-
-      if (!navigator.language) {
-        return this.config.defaults.dateFormat;
-      }
 
       var key = navigator.language.toLowerCase();
       return formats[key] || this.config.defaults.dateFormat;
@@ -6270,7 +6270,7 @@ var TopViews = function (_Pv) {
 
       $(this.config.platformSelector).val(params.platform || 'all-access');
 
-      this.excludes = params.excludes.map(function (exclude) {
+      this.excludes = (params.excludes || []).map(function (exclude) {
         return exclude.descore();
       });
 
@@ -6465,7 +6465,7 @@ var TopViews = function (_Pv) {
     value: function setupDateRangeSelector() {
       var type = arguments.length <= 0 || arguments[0] === undefined ? 'monthly' : arguments[0];
 
-      var yesterdayStr = moment().subtract(1, 'day').format('YYYY-MM-DD');
+      var yesterdayStr = moment().subtract(1, 'day').format(this.dateFormat);
       $('#date-type-select').val(type);
 
       var datepickerParams = type === 'monthly' ? {
@@ -6474,7 +6474,7 @@ var TopViews = function (_Pv) {
         minViewMode: 'months',
         endDate: '-1m'
       } : {
-        format: 'yyyy-mm-dd',
+        format: this.dateFormat,
         viewMode: 'days',
         endDate: yesterdayStr
       };
@@ -6576,8 +6576,9 @@ var TopViews = function (_Pv) {
     }
 
     /**
-     * Get instance of datepicker
-     * @return {Object} the datepicker instance
+     * Get date format to use based on settings
+     * @returns {string} date format to passed to parser
+     * @override
      */
 
   }, {
@@ -6735,6 +6736,17 @@ var TopViews = function (_Pv) {
         return true;
       }
     }
+  }, {
+    key: 'dateFormat',
+    get: function get() {
+      _get(Object.getPrototypeOf(TopViews.prototype), 'dateFormat', this).toLowerCase();
+    }
+
+    /**
+     * Get instance of datepicker
+     * @return {Object} the datepicker instance
+     */
+
   }, {
     key: 'datepicker',
     get: function get() {
