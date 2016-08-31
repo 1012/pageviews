@@ -31,7 +31,6 @@ class TopViews extends Pv {
    */
   initialize() {
     this.setupProjectInput();
-    this.setupDateRangeSelector();
     this.popParams();
     this.updateInterAppLinks();
   }
@@ -42,6 +41,7 @@ class TopViews extends Pv {
    * @returns {Deferred} deferred object from initData
    */
   processInput(force) {
+    this.clearSearch();
     this.pushParams();
 
     /** prevent redundant querying */
@@ -108,15 +108,14 @@ class TopViews extends Pv {
       }
     });
 
-    $(config.articleSelector).html('');
+    $(this.config.select2Input).html('');
 
     this.excludes.forEach(exclude => {
       const escapedText = $('<div>').text(exclude).html();
-      $(`<option>${escapedText}</option>`).appendTo(this.config.articleSelector);
+      $(`<option>${escapedText}</option>`).appendTo(this.config.select2Input);
     });
 
-    if (triggerChange) $(this.config.articleSelector).val(this.excludes).trigger('change');
-    // $(this.config.articleSelector).select2('close');
+    if (triggerChange) $(this.config.select2Input).val(this.excludes).trigger('change');
   }
 
   /**
@@ -135,13 +134,13 @@ class TopViews extends Pv {
    * Exports current chart data to CSV format and loads it in a new tab
    * With the prepended data:text/csv this should cause the browser to download the data
    * @returns {null} nothing
+   * @override
    */
   exportCSV() {
     let csvContent = 'data:text/csv;charset=utf-8,Page,Views\n';
 
     this.pageData.forEach(entry => {
-      if (this.excludes.includes(entry.article)) return;
-      // Build an array of site titles for use in the CSV header
+      // Build an array of page titles for use in the CSV header
       let title = '"' + entry.article.replace(/"/g, '""') + '"';
 
       csvContent += `${title},${entry.views}\n`;
@@ -153,20 +152,29 @@ class TopViews extends Pv {
   /**
    * Exports current chart data to JSON format and loads it in a new tab
    * @returns {null} nothing
+   * @override
    */
   exportJSON() {
-    let data = [];
-
-    this.pageData.forEach((entry, index) => {
-      if (this.excludes.includes(entry.article)) return;
-      data.push({
-        page: entry.article,
-        views: entry.views
-      });
-    });
-
-    const jsonContent = 'data:text/json;charset=utf-8,' + JSON.stringify(data);
+    const jsonContent = 'data:text/json;charset=utf-8,' + JSON.stringify(this.pageData);
     this.downloadData(jsonContent, 'json');
+  }
+
+  /**
+   * Get informative filename without extension to be used for export options
+   * @return {string} filename without an extension
+   * @override
+   */
+  getExportFilename() {
+    const datepickerValue = this.datepicker.getDate();
+    let date;
+
+    if (this.isMonthly()) {
+      date = moment(datepickerValue).format('YYYY/MM');
+    } else {
+      date = moment(datepickerValue).format('YYYY/MM/DD');
+    }
+
+    return `${this.app}-${date}`;
   }
 
   /**
@@ -240,17 +248,19 @@ class TopViews extends Pv {
    */
   setSpecialRange(range) {
     if (range === 'last-month') {
-      // '05' is an arbitrary date past the 1st to get around timezone conversion
-      const dateStr = moment().subtract(1, 'month').format('YYYY-MM-') + '05',
+      this.setupDateRangeSelector('monthly');
+      const dateStr = moment().subtract(1, 'month').format('YYYY-MM-') + '01',
         dateObj = new Date(dateStr);
-      this.datepicker.setDate(dateObj);
+      this.datepicker.setUTCDate(dateObj);
       this.specialRange = {
         range,
         value: moment(dateObj).format('YYYY/MM')
       };
     } else if (range === 'yesterday') {
-      const dateStr = moment().subtract(1, 'day').format('YYYY-MM-DD');
-      this.datepicker.setDate(dateStr);
+      this.setupDateRangeSelector('daily');
+      const dateStr = moment().subtract(1, 'day').format('YYYY-MM-DD'),
+        dateObj = new Date(dateStr);
+      this.datepicker.setUTCDate(dateObj);
       this.specialRange = {
         range,
         value: dateStr
@@ -268,14 +278,17 @@ class TopViews extends Pv {
    * @returns {null} nothing
    */
   setDate(dateInput) {
-    // attempt to parse date to determine if we were given a range
-    const date = Date.parse(dateInput);
-
-    if (isNaN(date)) {
-      // invalid date, so attempt to set as special range, or default range if range is invalid
-      this.setSpecialRange(dateInput) || this.setSpecialRange(this.config.defaults.dateRange);
+    if (/\d{4}-\d{2}$/.test(dateInput)) {
+      // monthly
+      this.setupDateRangeSelector('monthly');
+      this.datepicker.setUTCDate(new Date(`${dateInput}-01`));
+    } else if (/\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+      // daily
+      this.setupDateRangeSelector('daily');
+      this.datepicker.setUTCDate(new Date(dateInput));
     } else {
-      this.datepicker.setDate(new Date(dateInput));
+      // attempt to set as special range, or default range if range is invalid
+      this.setSpecialRange(dateInput) || this.setSpecialRange(this.config.defaults.dateRange);
     }
   }
 
@@ -297,16 +310,12 @@ class TopViews extends Pv {
 
     $(this.config.platformSelector).val(params.platform || 'all-access');
 
-    if (!params.excludes || (params.excludes.length === 1 && !params.excludes[0])) {
-      this.excludes = this.config.defaults.excludes;
-    } else {
-      this.excludes = params.excludes.map(exclude => exclude.descore());
-    }
+    this.excludes = params.excludes.map(exclude => exclude.descore());
 
     this.params = location.search;
 
     this.initData().then(() => {
-      this.setupArticleSelector();
+      this.setupSelect2();
       this.drawData();
       this.setupListeners();
     });
@@ -328,21 +337,21 @@ class TopViews extends Pv {
   }
 
   /**
-   * Removes all article selector related stuff then adds it back
+   * Removes all Select2 related stuff then adds it back
    * @returns {null} nothing
    */
-  resetArticleSelector() {
-    const articleSelector = $(this.config.articleSelector);
-    articleSelector.off('change');
-    articleSelector.val(null);
-    articleSelector.html('');
-    articleSelector.select2('data', null);
-    articleSelector.select2('destroy');
-    this.setupArticleSelector();
+  resetSelect2() {
+    const select2Input = $(this.config.select2Input);
+    select2Input.off('change');
+    select2Input.val(null);
+    select2Input.html('');
+    select2Input.select2('data', null);
+    select2Input.select2('destroy');
+    this.setupSelect2();
   }
 
   /**
-   * Removes chart, messages, and resets article selections
+   * Removes chart, messages, and resets Select2 selections
    * @returns {null} nothing
    */
   resetView(clearSelector = true) {
@@ -350,11 +359,11 @@ class TopViews extends Pv {
     this.offset = 0;
     this.pageData = [];
     this.pageNames = [];
-    this.stopSpinny();
+    this.stopSpinny(true);
     $('.chart-container').html('');
     $('.message-container').html('');
     if (clearSelector) {
-      this.resetArticleSelector();
+      this.resetSelect2();
       this.excludes = [];
     }
   }
@@ -409,27 +418,27 @@ class TopViews extends Pv {
   }
 
   /**
-   * Sets up the article selector and adds listener to update chart
+   * Sets up the Select2 selector and adds listener to update chart
    * @param {array} excludes - default page names to exclude
    * @returns {null} - nothing
    */
-  setupArticleSelector(excludes = this.excludes) {
-    const articleSelector = $(this.config.articleSelector);
+  setupSelect2(excludes = this.excludes) {
+    const select2Input = $(this.config.select2Input);
 
-    articleSelector.select2({
+    select2Input.select2({
       data: [],
       maximumSelectionLength: 50,
       minimumInputLength: 0,
       placeholder: $.i18n('hover-to-exclude')
     });
 
-    if (excludes.length) this.setArticleSelectorDefaults(excludes);
+    if (excludes.length) this.setSelect2Defaults(excludes);
 
-    articleSelector.on('change', e => {
+    select2Input.on('change', e => {
       this.excludes = $(e.target).val() || [];
       this.max = null;
+      this.clearSearch();
       this.drawData();
-      // $(this).select2().trigger('close');
     });
 
     /**
@@ -442,21 +451,20 @@ class TopViews extends Pv {
   }
 
   /**
-   * Directly set articles in article selector
+   * Directly set pages in Select2 selector
    * Currently is not able to remove underscore from page names
    *
    * @param {array} pages - page titles
    * @returns {array} - untouched array of pages
    */
-  setArticleSelectorDefaults(pages) {
+  setSelect2Defaults(pages) {
     pages = pages.map(page => {
       // page = page.replace(/ /g, '_');
       const escapedText = $('<div>').text(page).html();
-      $('<option>' + escapedText + '</option>').appendTo(this.config.articleSelector);
+      $('<option>' + escapedText + '</option>').appendTo(this.config.select2Input);
       return page;
     });
-    $(this.config.articleSelector).select2('val', pages);
-    $(this.config.articleSelector).select2('close');
+    $(this.config.select2Input).select2('val', pages);
 
     return pages;
   }
@@ -469,6 +477,7 @@ class TopViews extends Pv {
    */
   setupDateRangeSelector(type = 'monthly') {
     const yesterdayStr = moment().subtract(1, 'day').format('YYYY-MM-DD');
+    $('#date-type-select').val(type);
 
     const datepickerParams = type === 'monthly' ? {
       format: 'MM yyyy',
@@ -530,7 +539,7 @@ class TopViews extends Pv {
       }
       if (this.validateProject()) return;
       this.resetView(false);
-      this.processInput(true).then(resetArticleSelector);
+      this.processInput(true).then(resetSelect2);
     });
   }
 
@@ -549,15 +558,18 @@ class TopViews extends Pv {
 
   /**
    * Remove loading indicator class and clear the safeguard timeout
+   * @param {Boolean} hideDataLinks - whether or not to hide the data links
    * @returns {null} nothing
    * @override
    */
-  stopSpinny() {
+  stopSpinny(hideDataLinks) {
     super.stopSpinny();
-    $('.data-links').removeClass('invisible');
-    $('.search-topviews').removeClass('invisible');
-    $('.data-notice').removeClass('invisible');
-    $('.expand-chart').show();
+    if (!hideDataLinks) {
+      $('.data-links').removeClass('invisible');
+      $('.search-topviews').removeClass('invisible');
+      $('.data-notice').removeClass('invisible');
+      $('.expand-chart').show();
+    }
   }
 
   /**

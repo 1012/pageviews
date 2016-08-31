@@ -12,7 +12,7 @@ const pv = require('../shared/pv');
  * @type {Object}
  */
 const config = {
-  articleSelector: '.aqs-select2-selector',
+  select2Input: '.aqs-select2-selector',
   dateRangeSelector: '.aqs-date-range-selector',
   defaults: {
     dateRange: 'last-month',

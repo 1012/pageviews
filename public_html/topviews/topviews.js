@@ -3947,7 +3947,7 @@ var pv = require('../shared/pv');
  * @type {Object}
  */
 var config = {
-  articleSelector: '.aqs-select2-selector',
+  select2Input: '.aqs-select2-selector',
   dateRangeSelector: '.aqs-date-range-selector',
   defaults: {
     dateRange: 'last-month',
@@ -4021,7 +4021,6 @@ var TopViews = function (_Pv) {
     key: 'initialize',
     value: function initialize() {
       this.setupProjectInput();
-      this.setupDateRangeSelector();
       this.popParams();
       this.updateInterAppLinks();
     }
@@ -4035,6 +4034,7 @@ var TopViews = function (_Pv) {
   }, {
     key: 'processInput',
     value: function processInput(force) {
+      this.clearSearch();
       this.pushParams();
 
       /** prevent redundant querying */
@@ -4106,15 +4106,14 @@ var TopViews = function (_Pv) {
         }
       });
 
-      $(config.articleSelector).html('');
+      $(this.config.select2Input).html('');
 
       this.excludes.forEach(function (exclude) {
         var escapedText = $('<div>').text(exclude).html();
-        $('<option>' + escapedText + '</option>').appendTo(_this3.config.articleSelector);
+        $('<option>' + escapedText + '</option>').appendTo(_this3.config.select2Input);
       });
 
-      if (triggerChange) $(this.config.articleSelector).val(this.excludes).trigger('change');
-      // $(this.config.articleSelector).select2('close');
+      if (triggerChange) $(this.config.select2Input).val(this.excludes).trigger('change');
     }
 
     /**
@@ -4136,18 +4135,16 @@ var TopViews = function (_Pv) {
      * Exports current chart data to CSV format and loads it in a new tab
      * With the prepended data:text/csv this should cause the browser to download the data
      * @returns {null} nothing
+     * @override
      */
 
   }, {
     key: 'exportCSV',
     value: function exportCSV() {
-      var _this4 = this;
-
       var csvContent = 'data:text/csv;charset=utf-8,Page,Views\n';
 
       this.pageData.forEach(function (entry) {
-        if (_this4.excludes.includes(entry.article)) return;
-        // Build an array of site titles for use in the CSV header
+        // Build an array of page titles for use in the CSV header
         var title = '"' + entry.article.replace(/"/g, '""') + '"';
 
         csvContent += title + ',' + entry.views + '\n';
@@ -4159,25 +4156,35 @@ var TopViews = function (_Pv) {
     /**
      * Exports current chart data to JSON format and loads it in a new tab
      * @returns {null} nothing
+     * @override
      */
 
   }, {
     key: 'exportJSON',
     value: function exportJSON() {
-      var _this5 = this;
-
-      var data = [];
-
-      this.pageData.forEach(function (entry, index) {
-        if (_this5.excludes.includes(entry.article)) return;
-        data.push({
-          page: entry.article,
-          views: entry.views
-        });
-      });
-
-      var jsonContent = 'data:text/json;charset=utf-8,' + JSON.stringify(data);
+      var jsonContent = 'data:text/json;charset=utf-8,' + JSON.stringify(this.pageData);
       this.downloadData(jsonContent, 'json');
+    }
+
+    /**
+     * Get informative filename without extension to be used for export options
+     * @return {string} filename without an extension
+     * @override
+     */
+
+  }, {
+    key: 'getExportFilename',
+    value: function getExportFilename() {
+      var datepickerValue = this.datepicker.getDate();
+      var date = void 0;
+
+      if (this.isMonthly()) {
+        date = moment(datepickerValue).format('YYYY/MM');
+      } else {
+        date = moment(datepickerValue).format('YYYY/MM/DD');
+      }
+
+      return this.app + '-' + date;
     }
 
     /**
@@ -4266,17 +4273,19 @@ var TopViews = function (_Pv) {
     key: 'setSpecialRange',
     value: function setSpecialRange(range) {
       if (range === 'last-month') {
-        // '05' is an arbitrary date past the 1st to get around timezone conversion
-        var dateStr = moment().subtract(1, 'month').format('YYYY-MM-') + '05',
+        this.setupDateRangeSelector('monthly');
+        var dateStr = moment().subtract(1, 'month').format('YYYY-MM-') + '01',
             dateObj = new Date(dateStr);
-        this.datepicker.setDate(dateObj);
+        this.datepicker.setUTCDate(dateObj);
         this.specialRange = {
           range: range,
           value: moment(dateObj).format('YYYY/MM')
         };
       } else if (range === 'yesterday') {
-        var _dateStr = moment().subtract(1, 'day').format('YYYY-MM-DD');
-        this.datepicker.setDate(_dateStr);
+        this.setupDateRangeSelector('daily');
+        var _dateStr = moment().subtract(1, 'day').format('YYYY-MM-DD'),
+            _dateObj = new Date(_dateStr);
+        this.datepicker.setUTCDate(_dateObj);
         this.specialRange = {
           range: range,
           value: _dateStr
@@ -4297,14 +4306,17 @@ var TopViews = function (_Pv) {
   }, {
     key: 'setDate',
     value: function setDate(dateInput) {
-      // attempt to parse date to determine if we were given a range
-      var date = Date.parse(dateInput);
-
-      if (isNaN(date)) {
-        // invalid date, so attempt to set as special range, or default range if range is invalid
-        this.setSpecialRange(dateInput) || this.setSpecialRange(this.config.defaults.dateRange);
+      if (/\d{4}-\d{2}$/.test(dateInput)) {
+        // monthly
+        this.setupDateRangeSelector('monthly');
+        this.datepicker.setUTCDate(new Date(dateInput + '-01'));
+      } else if (/\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+        // daily
+        this.setupDateRangeSelector('daily');
+        this.datepicker.setUTCDate(new Date(dateInput));
       } else {
-        this.datepicker.setDate(new Date(dateInput));
+        // attempt to set as special range, or default range if range is invalid
+        this.setSpecialRange(dateInput) || this.setSpecialRange(this.config.defaults.dateRange);
       }
     }
 
@@ -4317,7 +4329,7 @@ var TopViews = function (_Pv) {
   }, {
     key: 'popParams',
     value: function popParams() {
-      var _this6 = this;
+      var _this4 = this;
 
       this.startSpinny();
       var params = this.parseQueryString('excludes');
@@ -4331,20 +4343,16 @@ var TopViews = function (_Pv) {
 
       $(this.config.platformSelector).val(params.platform || 'all-access');
 
-      if (!params.excludes || params.excludes.length === 1 && !params.excludes[0]) {
-        this.excludes = this.config.defaults.excludes;
-      } else {
-        this.excludes = params.excludes.map(function (exclude) {
-          return exclude.descore();
-        });
-      }
+      this.excludes = params.excludes.map(function (exclude) {
+        return exclude.descore();
+      });
 
       this.params = location.search;
 
       this.initData().then(function () {
-        _this6.setupArticleSelector();
-        _this6.drawData();
-        _this6.setupListeners();
+        _this4.setupSelect2();
+        _this4.drawData();
+        _this4.setupListeners();
       });
     }
 
@@ -4367,24 +4375,24 @@ var TopViews = function (_Pv) {
     }
 
     /**
-     * Removes all article selector related stuff then adds it back
+     * Removes all Select2 related stuff then adds it back
      * @returns {null} nothing
      */
 
   }, {
-    key: 'resetArticleSelector',
-    value: function resetArticleSelector() {
-      var articleSelector = $(this.config.articleSelector);
-      articleSelector.off('change');
-      articleSelector.val(null);
-      articleSelector.html('');
-      articleSelector.select2('data', null);
-      articleSelector.select2('destroy');
-      this.setupArticleSelector();
+    key: 'resetSelect2',
+    value: function resetSelect2() {
+      var select2Input = $(this.config.select2Input);
+      select2Input.off('change');
+      select2Input.val(null);
+      select2Input.html('');
+      select2Input.select2('data', null);
+      select2Input.select2('destroy');
+      this.setupSelect2();
     }
 
     /**
-     * Removes chart, messages, and resets article selections
+     * Removes chart, messages, and resets Select2 selections
      * @returns {null} nothing
      */
 
@@ -4397,11 +4405,11 @@ var TopViews = function (_Pv) {
       this.offset = 0;
       this.pageData = [];
       this.pageNames = [];
-      this.stopSpinny();
+      this.stopSpinny(true);
       $('.chart-container').html('');
       $('.message-container').html('');
       if (clearSelector) {
-        this.resetArticleSelector();
+        this.resetSelect2();
         this.excludes = [];
       }
     }
@@ -4415,7 +4423,7 @@ var TopViews = function (_Pv) {
   }, {
     key: 'searchTopviews',
     value: function searchTopviews() {
-      var _this7 = this;
+      var _this5 = this;
 
       var query = $('#topviews_search_field').val();
 
@@ -4426,7 +4434,7 @@ var TopViews = function (_Pv) {
 
       // add ranking to pageData and fetch matches
       this.pageData.forEach(function (entry, index) {
-        if (!_this7.excludes.includes(entry.article)) {
+        if (!_this5.excludes.includes(entry.article)) {
           count++;
           if (new RegExp(query, 'i').test(entry.article)) {
             entry.rank = count;
@@ -4441,48 +4449,48 @@ var TopViews = function (_Pv) {
       $('.topviews-search-icon').removeClass('glyphicon-search').addClass('glyphicon-remove');
 
       matchedData.forEach(function (item) {
-        var width = 100 * (item.views / _this7.max),
+        var width = 100 * (item.views / _this5.max),
             direction = !!i18nRtl ? 'to left' : 'to right';
 
-        $('.chart-container').append('<div class=\'topview-entry\' style=\'background:linear-gradient(' + direction + ', #EEE ' + width + '%, transparent ' + width + '%)\'>\n         <span class=\'topview-entry--remove glyphicon glyphicon-remove\' data-article-id=' + item.index + ' aria-hidden=\'true\'></span>\n         <span class=\'topview-entry--rank\'>' + item.rank + '</span>\n         <a class=\'topview-entry--label\' href="' + _this7.getPageURL(item.article) + '" target="_blank">' + item.article + '</a>\n         <span class=\'topview-entry--leader\'></span>\n         <a class=\'topview-entry--views\' href=\'' + _this7.getPageviewsURL(item.article) + '\'>' + _this7.formatNumber(item.views) + '</a></div>');
+        $('.chart-container').append('<div class=\'topview-entry\' style=\'background:linear-gradient(' + direction + ', #EEE ' + width + '%, transparent ' + width + '%)\'>\n         <span class=\'topview-entry--remove glyphicon glyphicon-remove\' data-article-id=' + item.index + ' aria-hidden=\'true\'></span>\n         <span class=\'topview-entry--rank\'>' + item.rank + '</span>\n         <a class=\'topview-entry--label\' href="' + _this5.getPageURL(item.article) + '" target="_blank">' + item.article + '</a>\n         <span class=\'topview-entry--leader\'></span>\n         <a class=\'topview-entry--views\' href=\'' + _this5.getPageviewsURL(item.article) + '\'>' + _this5.formatNumber(item.views) + '</a></div>');
       });
 
       $('.topview-entry--remove').off('click').on('click', function (e) {
-        var pageName = _this7.pageNames[$(e.target).data('article-id')];
-        _this7.addExclude(pageName);
-        _this7.searchTopviews(query, false);
+        var pageName = _this5.pageNames[$(e.target).data('article-id')];
+        _this5.addExclude(pageName);
+        _this5.searchTopviews(query, false);
       });
     }
 
     /**
-     * Sets up the article selector and adds listener to update chart
+     * Sets up the Select2 selector and adds listener to update chart
      * @param {array} excludes - default page names to exclude
      * @returns {null} - nothing
      */
 
   }, {
-    key: 'setupArticleSelector',
-    value: function setupArticleSelector() {
-      var _this8 = this;
+    key: 'setupSelect2',
+    value: function setupSelect2() {
+      var _this6 = this;
 
       var excludes = arguments.length <= 0 || arguments[0] === undefined ? this.excludes : arguments[0];
 
-      var articleSelector = $(this.config.articleSelector);
+      var select2Input = $(this.config.select2Input);
 
-      articleSelector.select2({
+      select2Input.select2({
         data: [],
         maximumSelectionLength: 50,
         minimumInputLength: 0,
         placeholder: $.i18n('hover-to-exclude')
       });
 
-      if (excludes.length) this.setArticleSelectorDefaults(excludes);
+      if (excludes.length) this.setSelect2Defaults(excludes);
 
-      articleSelector.on('change', function (e) {
-        _this8.excludes = $(e.target).val() || [];
-        _this8.max = null;
-        _this8.drawData();
-        // $(this).select2().trigger('close');
+      select2Input.on('change', function (e) {
+        _this6.excludes = $(e.target).val() || [];
+        _this6.max = null;
+        _this6.clearSearch();
+        _this6.drawData();
       });
 
       /**
@@ -4495,7 +4503,7 @@ var TopViews = function (_Pv) {
     }
 
     /**
-     * Directly set articles in article selector
+     * Directly set pages in Select2 selector
      * Currently is not able to remove underscore from page names
      *
      * @param {array} pages - page titles
@@ -4503,18 +4511,17 @@ var TopViews = function (_Pv) {
      */
 
   }, {
-    key: 'setArticleSelectorDefaults',
-    value: function setArticleSelectorDefaults(pages) {
-      var _this9 = this;
+    key: 'setSelect2Defaults',
+    value: function setSelect2Defaults(pages) {
+      var _this7 = this;
 
       pages = pages.map(function (page) {
         // page = page.replace(/ /g, '_');
         var escapedText = $('<div>').text(page).html();
-        $('<option>' + escapedText + '</option>').appendTo(_this9.config.articleSelector);
+        $('<option>' + escapedText + '</option>').appendTo(_this7.config.select2Input);
         return page;
       });
-      $(this.config.articleSelector).select2('val', pages);
-      $(this.config.articleSelector).select2('close');
+      $(this.config.select2Input).select2('val', pages);
 
       return pages;
     }
@@ -4532,6 +4539,7 @@ var TopViews = function (_Pv) {
       var type = arguments.length <= 0 || arguments[0] === undefined ? 'monthly' : arguments[0];
 
       var yesterdayStr = moment().subtract(1, 'day').format('YYYY-MM-DD');
+      $('#date-type-select').val(type);
 
       var datepickerParams = type === 'monthly' ? {
         format: 'MM yyyy',
@@ -4559,25 +4567,25 @@ var TopViews = function (_Pv) {
   }, {
     key: 'setupListeners',
     value: function setupListeners() {
-      var _this10 = this;
+      var _this8 = this;
 
       _get(Object.getPrototypeOf(TopViews.prototype), 'setupListeners', this).call(this);
 
       $(this.config.platformSelector).on('change', this.processInput.bind(this));
       $('#date-type-select').on('change', function (e) {
-        _this10.setupDateRangeSelector(e.target.value);
-        _this10.setSpecialRange(_this10.isMonthly() ? 'last-month' : 'yesterday');
+        _this8.setupDateRangeSelector(e.target.value);
+        _this8.setSpecialRange(_this8.isMonthly() ? 'last-month' : 'yesterday');
       });
       $('.expand-chart').on('click', function () {
-        _this10.offset += _this10.config.pageSize;
-        _this10.drawData();
+        _this8.offset += _this8.config.pageSize;
+        _this8.drawData();
       });
       $(this.config.dateRangeSelector).on('change', function (e) {
         /** clear out specialRange if it doesn't match our input */
-        if (_this10.specialRange && _this10.specialRange.value !== e.target.value) {
-          _this10.specialRange = null;
+        if (_this8.specialRange && _this8.specialRange.value !== e.target.value) {
+          _this8.specialRange = null;
         }
-        _this10.processInput();
+        _this8.processInput();
       });
       $('.mainspace-only-option').on('click', this.processInput.bind(this));
       $('#topviews_search_field').on('keyup', this.searchTopviews.bind(this));
@@ -4592,16 +4600,16 @@ var TopViews = function (_Pv) {
   }, {
     key: 'setupProjectInput',
     value: function setupProjectInput() {
-      var _this11 = this;
+      var _this9 = this;
 
       $(this.config.projectInput).on('change', function (e) {
         if (!e.target.value) {
-          e.target.value = _this11.config.defaults.project;
+          e.target.value = _this9.config.defaults.project;
           return;
         }
-        if (_this11.validateProject()) return;
-        _this11.resetView(false);
-        _this11.processInput(true).then(resetArticleSelector);
+        if (_this9.validateProject()) return;
+        _this9.resetView(false);
+        _this9.processInput(true).then(resetSelect2);
       });
     }
 
@@ -4623,18 +4631,21 @@ var TopViews = function (_Pv) {
 
     /**
      * Remove loading indicator class and clear the safeguard timeout
+     * @param {Boolean} hideDataLinks - whether or not to hide the data links
      * @returns {null} nothing
      * @override
      */
 
   }, {
     key: 'stopSpinny',
-    value: function stopSpinny() {
+    value: function stopSpinny(hideDataLinks) {
       _get(Object.getPrototypeOf(TopViews.prototype), 'stopSpinny', this).call(this);
-      $('.data-links').removeClass('invisible');
-      $('.search-topviews').removeClass('invisible');
-      $('.data-notice').removeClass('invisible');
-      $('.expand-chart').show();
+      if (!hideDataLinks) {
+        $('.data-links').removeClass('invisible');
+        $('.search-topviews').removeClass('invisible');
+        $('.data-notice').removeClass('invisible');
+        $('.expand-chart').show();
+      }
     }
 
     /**
@@ -4679,7 +4690,7 @@ var TopViews = function (_Pv) {
   }, {
     key: 'initData',
     value: function initData() {
-      var _this12 = this;
+      var _this10 = this;
 
       var dfd = $.Deferred();
 
@@ -4692,26 +4703,26 @@ var TopViews = function (_Pv) {
         dataType: 'json'
       }).done(function (data) {
         // store pageData from API, removing underscores from the page name
-        _this12.pageData = data.items[0].articles.map(function (page) {
+        _this10.pageData = data.items[0].articles.map(function (page) {
           page.article = page.article.descore();
           return page;
         });
 
         /** build the pageNames array for Select2 */
-        _this12.pageNames = _this12.pageData.map(function (page) {
+        _this10.pageNames = _this10.pageData.map(function (page) {
           return page.article;
         });
 
         if ($('.mainspace-only-option').is(':checked')) {
-          _this12.filterOutNamespace(_this12.pageNames).done(function (pageNames) {
-            _this12.pageNames = pageNames;
-            _this12.pageData = _this12.pageData.filter(function (page) {
+          _this10.filterOutNamespace(_this10.pageNames).done(function (pageNames) {
+            _this10.pageNames = pageNames;
+            _this10.pageData = _this10.pageData.filter(function (page) {
               return pageNames.includes(page.article);
             });
-            return dfd.resolve(_this12.pageData);
+            return dfd.resolve(_this10.pageData);
           });
         } else {
-          return dfd.resolve(_this12.pageData);
+          return dfd.resolve(_this10.pageData);
         }
       });
 

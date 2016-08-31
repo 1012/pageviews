@@ -86,7 +86,7 @@
                 <?php echo $I18N->msg( 'mainspace-only-option' ); ?>
               </label>
             </span>
-            <select class="aqs-select2-selector col-lg-12 invisible" id="article-input" multiple="multiple"></select>
+            <select class="aqs-select2-selector col-lg-12 invisible" multiple="multiple"></select>
           </div>
         </div>
         <!-- FIXME: use flexbox and not hacky per-project workaround to make input and data links stay on the same line -->
